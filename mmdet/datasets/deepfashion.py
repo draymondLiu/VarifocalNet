@@ -1,6 +1,6 @@
 from .builder import DATASETS
-from .coco import CocoDataset
-
+#from .coco import CocoDataset
+from .pcbv3 import CocoDataset
 
 @DATASETS.register_module()
 class DeepFashionDataset(CocoDataset):

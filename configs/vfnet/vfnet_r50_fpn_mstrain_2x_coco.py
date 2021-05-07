@@ -1,6 +1,7 @@
 _base_ = './vfnet_r50_fpn_1x_coco.py'
 img_norm_cfg = dict(
-    mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
+    #mean=, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
+    mean=[38.720, 51.155, 40.22], std=[53.275, 52.273, 46.819], to_rgb=True)
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True),

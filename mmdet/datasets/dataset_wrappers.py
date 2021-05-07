@@ -7,8 +7,8 @@ from mmcv.utils import print_log
 from torch.utils.data.dataset import ConcatDataset as _ConcatDataset
 
 from .builder import DATASETS
-from .coco import CocoDataset
-
+#from .coco import CocoDataset
+from .pcbv3 import CocoDataset
 
 @DATASETS.register_module()
 class ConcatDataset(_ConcatDataset):

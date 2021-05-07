@@ -9,8 +9,8 @@ from mmcv.utils import print_log
 from terminaltables import AsciiTable
 
 from .builder import DATASETS
-from .coco import CocoDataset
-
+#from .coco import CocoDataset
+from .pcbv3 import CocoDataset
 
 @DATASETS.register_module()
 class LVISV05Dataset(CocoDataset):

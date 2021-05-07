@@ -1,4 +1,9 @@
 _base_ = './vfnet_r50_fpn_mdconv_c3-c5_mstrain_2x_coco.py'
+#_base_ = [
+#    '../_base_/datasets/coco_detection.py',
+#    '../_base_/schedules/schedule_1x.py', '../_base_/default_runtime.py',
+#    '../_base_/swa.py'
+#]
 model = dict(
     pretrained='open-mmlab://res2net101_v1d_26w_4s',
     backbone=dict(
@@ -28,7 +33,7 @@ model = dict(
         norm_cfg=dict(type='GN', num_groups=32, requires_grad=True)),
     bbox_head=dict(
         type='VFNetHead',
-        num_classes=80,
+        num_classes=4,#80
         in_channels=384,
         stacked_convs=4,
         feat_channels=384,
@@ -70,9 +75,10 @@ model = dict(
 
 # data setting
 dataset_type = 'CocoDataset'
-data_root = 'data/coco/'
+data_root = '/home/u5216579/vf/data/coco/'
 img_norm_cfg = dict(
-    mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
+    #mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
+    mean=[38.720, 51.155, 40.22], std=[53.275, 52.273, 46.819], to_rgb=True)
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True),
@@ -117,7 +123,7 @@ test_pipeline = [
 data = dict(
     samples_per_gpu=2,
     workers_per_gpu=2,
-    train=dict(pipeline=train_pipeline),
+    train=dict(pipeline=train_pipeline),#ann_file='data/coco/annotations/instances_val2017.json',img_prefix='data/coco/val2017/',
     val=dict(pipeline=test_pipeline),
     test=dict(pipeline=test_pipeline))
 
