@@ -2,7 +2,7 @@ from argparse import ArgumentParser
 import numpy as np
 from mmdet.apis import inference_detector, init_detector, show_result_pyplot
 from PIL import Image
-import os, sys, time, logging
+import os, sys, time, logging, json
 import cv2
 from crop_sliding_window import crop_sliding_window, non_max_suppression_slow, csv_to_json
 from logger import get_logger
@@ -12,6 +12,36 @@ logger = get_logger(name=__file__, console_handler_level=logging.DEBUG, file_han
 num_to_category_dict = {0: 'bridge', 1: 'appearance_less', 2: 'excess_solder', 3: 'appearance'}
 category_to_color_dict = {'bridge': [0, 0, 255], 'appearance_less': [255,191,0], 'excess_solder': [221,160,221], 'appearance': [0,165,255]}
 default_color = [0, 255, 0]
+
+def get_bbox_from_json(json_file_path, store_score=False):
+    return json_to_csv(json_file_path, store_score)
+
+def json_to_csv(json_file_path, store_score=False):  # return [[file_name, error_type, xmin, ymin, xmax, ymax], ...]
+    """
+    Convert labelme json format to csv format.
+    Args:
+        json_file_path (str): json file path.
+        store_score (boolean): determine if you want to store score in bbox_list or not
+    Returns:
+        bbox_list (list[list]): annotations in [[file_name, error_type, xmin, ymin, xmax, ymax, score], ...] format.
+                                (score is optional and is controlled by store_score)
+    """
+    bbox_list = list()
+    with open(json_file_path, 'r') as json_file:
+        json_dict = json.load(json_file)
+        file_name = os.path.basename(json_dict["imagePath"])
+        for element in json_dict["shapes"]:
+            error_type = element["label"]
+            xmin = int(element["points"][0][0])
+            ymin = int(element["points"][0][1])
+            xmax = int(element["points"][1][0])
+            ymax = int(element["points"][1][1])
+            if store_score:
+                score = element.get("score")
+                bbox_list.append([file_name, error_type, xmin, ymin, xmax, ymax, score])
+            else:
+                bbox_list.append([file_name, error_type, xmin, ymin, xmax, ymax])
+    return bbox_list
 
 def parse_out_and_filter_score(results, score_thr):
     batch_bboxes, batch_labels =[], []
@@ -121,6 +151,8 @@ def main():
         '--exp_id', type=str, default='test', help='experiment name')
     parser.add_argument(
         '--eval_bs', type=int, default=16, help='batch size when executing eval')
+    parser.add_argument(
+        '--no_image', action='store_true', help='no draw bbox on image')
     args = parser.parse_args()
 
     # build the model from a config file and a checkpoint file
@@ -151,6 +183,7 @@ def main():
         start_time = time.time()
         #bboxes_list, labels_list = list(), list()
         image_file_path = os.path.join(image_wo_border_dir, image_file_name) # big img path
+        json_file_name = image_file_name.replace('.jpg','.json')
         image_org = cv2.imread(image_file_path)#(args.img)
         crop_rect_list, crop_image_list = crop_sliding_window(image_org)
         
@@ -160,18 +193,26 @@ def main():
         bbox_list = non_max_suppression_slow(bbox_list, 0.5)
         
         csv_to_json(bbox_list, image_wo_border_dir, inference_result_label_dir, coord_type="xmin_ymin_xmax_ymax", store_score=True)
+        
+        if not args.no_image:
+            # Save original image with inference result
+            image_bbox = image_org.copy()
+            for bbox in bbox_list:
+                file_name, error_type, xmin, ymin, xmax, ymax, score = bbox
+                color = category_to_color_dict.get(error_type, default_color)
+                cv2.rectangle(image_bbox, (xmin, ymin), (xmax, ymax), color, 6)
+                cv2.putText(image_bbox, str(score), (xmin, ymin-10), cv2.FONT_HERSHEY_TRIPLEX, 1, color, 2, cv2.LINE_8)
+            #for json_file_name in os.listdir(label_wo_border_dir):
+            truth_json_file_path = os.path.join(label_wo_border_dir, json_file_name)
+            truth_bbox_list = get_bbox_from_json(truth_json_file_path, store_score=False)
+            for t_bbox in truth_bbox_list:
+                t_file_name, t_error_type, t_xmin, t_ymin, t_xmax, t_ymax = t_bbox
+                cv2.rectangle(image_bbox, (t_xmin, t_ymin), (t_xmax, t_ymax), default_color, 6)
 
-        # Save original image with inference result
-        image_bbox = image_org.copy()
-        for bbox in bbox_list:
-            file_name, error_type, xmin, ymin, xmax, ymax, score = bbox
-            color = category_to_color_dict.get(error_type, default_color)
-            cv2.rectangle(image_bbox, (xmin, ymin), (xmax, ymax), color, 6)
-            cv2.putText(image_bbox, str(score), (xmin, ymin-10), cv2.FONT_HERSHEY_TRIPLEX, 1, color, 2, cv2.LINE_8)
-        image_bbox_file_path = os.path.join(inference_result_image_dir, image_file_name)
-        cv2.imwrite(image_bbox_file_path, image_bbox, [cv2.IMWRITE_PNG_COMPRESSION, 0])
+            image_bbox_file_path = os.path.join(inference_result_image_dir, image_file_name)
+            cv2.imwrite(image_bbox_file_path, image_bbox, [cv2.IMWRITE_PNG_COMPRESSION, 0])
 
-        logger.debug("{:>4d}, crop image number = {:>3d}, time = {:4.3f} s".format(idx, len(crop_rect_list), round(time.time()-start_time, 3)))
+            logger.debug("{:>4d}, crop image number = {:>3d}, time = {:4.3f} s".format(idx, len(crop_rect_list), round(time.time()-start_time, 3)))
     logger.debug("Total time = {} s".format(round(time.time()-global_start_time)))
 
     #print('bbox_list',bbox_list)
